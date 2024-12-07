@@ -3,7 +3,12 @@ name: Update EC2 Instance Prices
 on:
   schedule:
     - cron: '0 0 * * *'  # Run every day at midnight UTC
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update ignoring cache'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -35,11 +40,22 @@ jobs:
       run: |
         source ./functions.sh
         REGIONS=$(aws account list-regions | jq -r '.Regions[].RegionName')
+        FORCE_UPDATE="${{ github.event.inputs.force_update }}"
+
         for region in $REGIONS; do
           for os in linux windows; do
-            echo "Generating EC2 prices for $os -> $region ..."
-            mkdir -p ec2/on-demand/$os/$region
-            get_ec2_instance_types --price-region-code=$region --os=$os > ec2/on-demand/$os/$region/prices.txt
+            CACHE_FILE="ec2/on-demand/$os/$region/cache.txt"
+            PRICES_FILE="ec2/on-demand/$os/$region/prices.txt"
+            
+            mkdir -p "ec2/on-demand/$os/$region"
+
+            if [ "$FORCE_UPDATE" = "true" ] || [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(date -r "$CACHE_FILE" +%s) )) -gt 604800 ]; then
+              echo "Generating EC2 prices for $os -> $region ..."
+              get_ec2_instance_types --price-region-code=$region --os=$os > "$PRICES_FILE"
+              echo "$(date +%s)" > "$CACHE_FILE"
+            else
+              echo "Using cached prices for $os -> $region (last updated $(date -r "$CACHE_FILE"))"
+            fi
           done
         done
 
