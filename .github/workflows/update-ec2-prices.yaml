@@ -1,4 +1,4 @@
-name: Update EC2 Instance Prices
+name: Update EC2 and Lightsail Instance Prices
 
 on:
   schedule:
@@ -59,12 +59,29 @@ jobs:
           done
         done
 
+    - name: Generate Lightsail prices
+      run: |
+        source ./functions.sh
+        FORCE_UPDATE="${{ github.event.inputs.force_update }}"
+        CACHE_FILE="lightsail/cache.txt"
+        PRICES_FILE="lightsail/prices.txt"
+
+        mkdir -p "lightsail"
+
+        if [ "$FORCE_UPDATE" = "true" ] || [ ! -f "$CACHE_FILE" ] || [ $(( $(date +%s) - $(date -r "$CACHE_FILE" +%s) )) -gt 604800 ]; then
+          echo "Generating Lightsail prices..."
+          get_lightsail_bundles > "$PRICES_FILE"
+          echo "$(date +%s)" > "$CACHE_FILE"
+        else
+          echo "Using cached Lightsail prices (last updated $(date -r "$CACHE_FILE"))"
+        fi
+
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add ec2/on-demand
-        git commit -m "Update EC2 prices for all regions (Linux and Windows)" || echo "No changes to commit"
+        git add ec2/on-demand lightsail
+        git commit -m "Update EC2 and Lightsail prices for all regions" || echo "No changes to commit"
         
         while true; do
           if git push; then
