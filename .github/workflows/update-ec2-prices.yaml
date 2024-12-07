@@ -1,0 +1,67 @@
+name: Update EC2 Instance Prices
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run every day at midnight UTC
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  # get-regions:
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     regions: ${{ steps.set-regions.outputs.regions }}
+  #   steps:
+  #   - name: Configure AWS credentials
+  #     uses: aws-actions/configure-aws-credentials@v1
+  #     with:
+  #       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #       aws-region: us-east-1
+
+  #   - name: Get AWS regions
+  #     id: set-regions
+  #     run: |
+  #       REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output json)
+  #       echo "regions=$REGIONS" >> $GITHUB_OUTPUT
+
+  update-prices:
+    # needs: get-regions
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # region: ${{ fromJson(needs.get-regions.outputs.regions) }}
+        region: [ap-southeast-1]
+        os: [linux, windows]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ matrix.region }}
+
+    - name: Install jq
+      run: sudo apt-get install -y jq
+
+    - name: Download functions.sh
+      run: |
+        curl -o functions.sh https://raw.githubusercontent.com/rioastamal/easy-aws-helper/refs/heads/main/functions.sh
+        chmod +x functions.sh
+
+    - name: Generate EC2 prices
+      run: |
+        source ./functions.sh
+        mkdir -p ec2/${{ matrix.os }}/${{ matrix.region }}
+        get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/${{ matrix.os }}/${{ matrix.region }}/prices.txt
+
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add ec2/${{ matrix.os }}/${{ matrix.region }}/prices.txt
+        git commit -m "Update EC2 prices for ${{ matrix.region }} (${{ matrix.os }})" || echo "No changes to commit"
+        git push
