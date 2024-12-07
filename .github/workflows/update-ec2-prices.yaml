@@ -59,7 +59,7 @@ jobs:
       run: |
         source ./functions.sh
         mkdir -p ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}
-        get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/${{ matrix.os }}/${{ matrix.region }}/prices.txt
+        get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}/prices.txt
 
     - name: Commit and push changes
       run: |
