@@ -58,13 +58,23 @@ jobs:
     - name: Generate EC2 prices
       run: |
         source ./functions.sh
-        mkdir -p ec2/${{ matrix.os }}/${{ matrix.region }}
+        mkdir -p ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}
         get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/${{ matrix.os }}/${{ matrix.region }}/prices.txt
 
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add ec2/${{ matrix.os }}/${{ matrix.region }}/prices.txt
+        git add ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}/prices.txt
         git commit -m "Update EC2 prices for ${{ matrix.region }} (${{ matrix.os }})" || echo "No changes to commit"
-        git push
+        
+        while true; do
+          if git push; then
+            echo "Push successful"
+            break
+          else
+            echo "Push failed, pulling latest changes and retrying..."
+            git pull --rebase
+          fi
+          sleep 5
+        done
