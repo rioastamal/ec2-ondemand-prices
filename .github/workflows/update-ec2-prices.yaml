@@ -9,31 +9,31 @@ permissions:
   contents: write
 
 jobs:
-  # get-regions:
-  #   runs-on: ubuntu-latest
-  #   outputs:
-  #     regions: ${{ steps.set-regions.outputs.regions }}
-  #   steps:
-  #   - name: Configure AWS credentials
-  #     uses: aws-actions/configure-aws-credentials@v1
-  #     with:
-  #       aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #       aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #       aws-region: us-east-1
+  get-regions:
+    runs-on: ubuntu-latest
+    outputs:
+      regions: ${{ steps.set-regions.outputs.regions }}
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-  #   - name: Get AWS regions
-  #     id: set-regions
-  #     run: |
-  #       REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output json)
-  #       echo "regions=$REGIONS" >> $GITHUB_OUTPUT
+    - name: Get AWS regions
+      id: set-regions
+      run: |
+        REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output json)
+        echo "regions=$REGIONS" >> $GITHUB_OUTPUT
 
   update-prices:
-    # needs: get-regions
+    needs: get-regions
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # region: ${{ fromJson(needs.get-regions.outputs.regions) }}
-        region: [ap-southeast-1]
+        region: ${{ fromJson(needs.get-regions.outputs.regions) }}
+        # region: [ap-southeast-1]
         os: [linux, windows]
 
     steps:
@@ -57,6 +57,7 @@ jobs:
 
     - name: Generate EC2 prices
       run: |
+        echo "Generating EC2 prices for ${{ matrix.os }} -> ${{ matrix.region }} ..."
         source ./functions.sh
         mkdir -p ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}
         get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}/prices.txt
