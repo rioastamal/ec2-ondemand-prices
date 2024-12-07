@@ -21,10 +21,13 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-east-1
 
+    - name: Install jq
+      run: sudo apt-get install -y jq
+
     - name: Get AWS regions
       id: set-regions
       run: |
-        REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output json)
+        REGIONS=$(aws account list-regions | jq -r '.Regions[].RegionName' | jq -R -s -c 'split("\n")[:-1]')
         echo "regions=$REGIONS" >> $GITHUB_OUTPUT
 
   update-prices:
@@ -33,7 +36,6 @@ jobs:
     strategy:
       matrix:
         region: ${{ fromJson(needs.get-regions.outputs.regions) }}
-        # region: [ap-southeast-1]
         os: [linux, windows]
 
     steps:
