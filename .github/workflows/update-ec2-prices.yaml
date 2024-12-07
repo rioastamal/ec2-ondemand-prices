@@ -5,8 +5,12 @@ on:
     - cron: '0 0 * * *'  # Run every day at midnight UTC
   workflow_dispatch:
     inputs:
-      force_update:
-        description: 'Force update ignoring cache'
+      force_update_ec2:
+        description: 'Force update EC2 prices ignoring cache'
+        required: false
+        default: 'false'
+      force_update_lightsail:
+        description: 'Force update Lightsail prices ignoring cache'
         required: false
         default: 'false'
 
@@ -40,7 +44,7 @@ jobs:
       run: |
         source ./functions.sh
         REGIONS=$(aws account list-regions | jq -r '.Regions[].RegionName')
-        FORCE_UPDATE="${{ github.event.inputs.force_update }}"
+        FORCE_UPDATE="${{ github.event.inputs.force_update_ec2 }}"
 
         for region in $REGIONS; do
           for os in linux windows; do
@@ -62,7 +66,7 @@ jobs:
     - name: Generate Lightsail prices
       run: |
         source ./functions.sh
-        FORCE_UPDATE="${{ github.event.inputs.force_update }}"
+        FORCE_UPDATE="${{ github.event.inputs.force_update_lightsail }}"
         CACHE_FILE="lightsail/cache.txt"
         PRICES_FILE="lightsail/prices.txt"
 
