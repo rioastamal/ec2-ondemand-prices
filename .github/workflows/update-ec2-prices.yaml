@@ -9,34 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  get-regions:
-    runs-on: ubuntu-latest
-    outputs:
-      regions: ${{ steps.set-regions.outputs.regions }}
-    steps:
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-
-    - name: Install jq
-      run: sudo apt-get install -y jq
-
-    - name: Get AWS regions
-      id: set-regions
-      run: |
-        REGIONS=$(aws account list-regions | jq -r '.Regions[].RegionName' | jq -R -s -c 'split("\n")[:-1]')
-        echo "regions=$REGIONS" >> $GITHUB_OUTPUT
-
   update-prices:
-    needs: get-regions
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        region: ${{ fromJson(needs.get-regions.outputs.regions) }}
-        os: [linux, windows]
 
     steps:
     - name: Checkout repository
@@ -47,7 +21,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ matrix.region }}
+        aws-region: us-east-1
 
     - name: Install jq
       run: sudo apt-get install -y jq
@@ -57,19 +31,24 @@ jobs:
         curl -o functions.sh https://raw.githubusercontent.com/rioastamal/easy-aws-helper/refs/heads/main/functions.sh
         chmod +x functions.sh
 
-    - name: Generate EC2 prices
+    - name: Generate EC2 prices for all regions
       run: |
-        echo "Generating EC2 prices for ${{ matrix.os }} -> ${{ matrix.region }} ..."
         source ./functions.sh
-        mkdir -p ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}
-        get_ec2_instance_types --price-region-code=${{ matrix.region }} --os=${{ matrix.os }} > ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}/prices.txt
+        REGIONS=$(aws account list-regions | jq -r '.Regions[].RegionName')
+        for region in $REGIONS; do
+          for os in linux windows; do
+            echo "Generating EC2 prices for $os -> $region ..."
+            mkdir -p ec2/on-demand/$os/$region
+            get_ec2_instance_types --price-region-code=$region --os=$os > ec2/on-demand/$os/$region/prices.txt
+          done
+        done
 
     - name: Commit and push changes
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add ec2/on-demand/${{ matrix.os }}/${{ matrix.region }}/prices.txt
-        git commit -m "Update EC2 prices for ${{ matrix.region }} (${{ matrix.os }})" || echo "No changes to commit"
+        git add ec2/on-demand
+        git commit -m "Update EC2 prices for all regions (Linux and Windows)" || echo "No changes to commit"
         
         while true; do
           if git push; then
